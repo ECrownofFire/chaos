@@ -2,6 +2,7 @@ from math import log
 import arrow
 import re
 from emoji import demojize
+import json
 
 from . import prs
 from . import comments
@@ -108,7 +109,7 @@ def get_pr_review_votes(api, urn, pr_num):
 
 
 
-def get_vote_weight(api, username):
+def get_vote_weight(api, username, points):
     """ for a given username, determine the weight that their -1 or +1 vote
     should be scaled by """
     user = users.get_user(api, username)
@@ -119,20 +120,25 @@ def get_vote_weight(api, username):
     created = arrow.get(user["created_at"])
     age = (now - created).total_seconds()
     old_enough_to_vote = age >= settings.MIN_VOTER_AGE
-    weight = 1.0 if old_enough_to_vote else 0.0
+    if not old_enough_to_vote:
+        return 0.0
 
-    return weight
+    # At 0 points, weight is 0.247, 2: 0.327, 4: 0.432, 6: 0.572, 8: 0.756
+    # 10 and up give you 1.0
+    return min(1.15**(x-10),1.0)
 
 
 def get_vote_sum(api, votes):
     """ for a vote mapping of username => -1 or 1, compute the weighted vote
     total """
     total = 0
-    for user, vote in votes.items():
-        weight = get_vote_weight(api, user)
-        total += weight * vote
-
-    return total
+    with open('voters.json', 'r') as fp:
+        points = json.load(fp)
+        for user, vote in votes.items():
+            point = points[user] if user in points else 0
+                weight = get_vote_weight(api, user, point)
+            total += weight * vote
+        return total
 
 
 def get_approval_threshold(api, urn):

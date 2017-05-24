@@ -95,6 +95,14 @@ def poll_pull_requests():
             if fs:
                 # if the voting record exists, read it in
                 old_votes = json.loads(fs)
+                # Reduce everyone's points by 4% per PR, so active voters are
+                # rewarded. At the moment, this means that you maintain 1.0 for
+                # missing 10 or less, then the amount slowly decreases
+                # Of course, these values can all be adjusted later
+                for user in old_votes:
+                    # The new vote weight should be roughly maxed at around 10
+                    new_total = old_votes[user] * 0.96
+                    old_votes[user] -= min(new_total, 15)
                 # then prepare for overwriting
                 fp.seek(0)
                 fp.truncate()
